@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypaya-python-tools"
+version = "0.1.0"
+description = "Awesome Python code for Python developers to make working with Python easier."
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+keywords = ["development", "tools", "utilities", "productivity", "ai"]
+authors = [
+    {name = "PypayaTech"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "astor",
+]
+
+[project.urls]
+Homepage = "https://github.com/PypayaTech/pypaya-python-tools"
+Repository = "https://github.com/PypayaTech/pypaya-python-tools.git"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+]
+
+[tool.setuptools]
+packages = [
+    "pypaya_python_tools",
+    "pypaya_python_tools.code_manipulation",
+    "pypaya_python_tools.coding_with_llms",
+    "pypaya_python_tools.decorating",
+    "pypaya_python_tools.execution",
+    "pypaya_python_tools.imports",
+    "pypaya_python_tools.object_generation",
+    "pypaya_python_tools.package_management",
+]
