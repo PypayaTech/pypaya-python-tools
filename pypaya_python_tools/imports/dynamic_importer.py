@@ -34,7 +34,7 @@ class DynamicImporter:
         config: ImportConfig object with importer settings.
     """
 
-    def __init__(self, config: ImportConfig):
+    def __init__(self, config: ImportConfig = ImportConfig()):
         self._config = config
         self._loaded_modules: Dict[str, ModuleType] = {}
         self._module_paths: Dict[str, str] = {}
@@ -293,7 +293,7 @@ def main():
             add_to_sys_modules=True,
             debug=True
         )
-        importer = DynamicImporter(config)
+        importer = DynamicImporter()
 
         print("1. Importing a module:")
         sample_module = importer.import_module('examples.sample_module', base_path=temp_dir)
