@@ -60,7 +60,6 @@ class DynamicImporter:
             The imported module.
 
         Raises:
-            SecurityError: If the import is not allowed.
             ImportError: If the module cannot be imported.
         """
         if module_name in self._loaded_modules:
@@ -93,7 +92,6 @@ class DynamicImporter:
             The imported object.
 
         Raises:
-            SecurityError: If the import is not allowed.
             ImportError: If the object cannot be imported.
             AttributeError: If the object is not found in the module.
         """
@@ -112,7 +110,6 @@ class DynamicImporter:
             The imported module.
 
         Raises:
-            SecurityError: If the import is not allowed.
             ImportError: If the file cannot be imported.
         """
         full_path = os.path.join(base_path, file_path) if base_path else file_path
@@ -140,7 +137,6 @@ class DynamicImporter:
             The imported object.
 
         Raises:
-            SecurityError: If the import is not allowed.
             ImportError: If the file cannot be imported.
             AttributeError: If the object is not found in the module.
         """
