@@ -1,4 +1,6 @@
-from pypaya_python_tools.package_management import PackageManager, PipPackageManager, CondaPackageManager
+from pypaya_python_tools.package_management.base import PackageManager
+from pypaya_python_tools.package_management.pip_manager import PipPackageManager
+from pypaya_python_tools.package_management.conda_manager import CondaPackageManager
 
 
 class PackageManagerFactory:
