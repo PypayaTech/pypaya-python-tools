@@ -1,5 +1,6 @@
 from typing import Union, Optional
-from pypaya_python_tools.package_management import PackageManager, PackageManagerFactory
+from pypaya_python_tools.package_management.base import PackageManager
+from pypaya_python_tools.package_management.factory import PackageManagerFactory
 
 
 def install_package(package_name: str, manager: Union[str, PackageManager] = "pip",
