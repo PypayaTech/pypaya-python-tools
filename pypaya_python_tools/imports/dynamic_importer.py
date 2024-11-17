@@ -81,7 +81,7 @@ class DynamicImporter:
             self.logger.error(f"Failed to import module {module_name}: {str(e)}", exc_info=self._config.debug)
             raise
 
-    def import_object(self, import_path: str, base_path: Optional[str] = None) -> Any:
+    def import_object_from_module(self, import_path: str, base_path: Optional[str] = None) -> Any:
         """Import an object from a module.
 
         Args:
@@ -158,7 +158,7 @@ class DynamicImporter:
             if os.path.isfile(full_path):
                 return self.import_file(import_path, base_path)
             elif '.' in import_path:
-                return self.import_object(import_path, base_path)
+                return self.import_object_from_module(import_path, base_path)
             else:
                 return self.import_module(import_path, base_path)
         except (ImportError, AttributeError):
@@ -297,13 +297,13 @@ def main():
         print(f"Result of sample_function: {sample_module.sample_function()}")
 
         print("\n2. Importing an object:")
-        SampleClass = importer.import_object('examples.sample_module.SampleClass', base_path=temp_dir)
+        SampleClass = importer.import_object_from_module('examples.sample_module.SampleClass', base_path=temp_dir)
         sample_instance = SampleClass()
         print(f"Result of SampleClass.method: {sample_instance.method()}")
 
         print("\n3. Importing from a package:")
-        submodule_function = importer.import_object('examples.sample_package.sample_submodule.submodule_function',
-                                                    base_path=temp_dir)
+        submodule_function = importer.import_object_from_module('examples.sample_package.sample_submodule.submodule_function',
+                                                                base_path=temp_dir)
         print(f"Result of submodule_function: {submodule_function()}")
 
         print("\n4. Loading plugins:")

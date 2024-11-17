@@ -55,7 +55,7 @@ class ConfigurableObjectGenerator:
             module = self.importer.import_module(module_name)
 
             if class_name:
-                class_obj = self.importer.import_object(f"{module_name}.{class_name}")
+                class_obj = self.importer.import_object_from_module(f"{module_name}.{class_name}")
             else:
                 class_obj = module
 

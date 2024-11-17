@@ -32,7 +32,7 @@ def test_import_module(importer):
 
 
 def test_import_object(importer):
-    path_join = importer.import_object('os.path.join')
+    path_join = importer.import_object_from_module('os.path.join')
     assert callable(path_join)
     assert path_join('a', 'b') == os.path.join('a', 'b')
 
