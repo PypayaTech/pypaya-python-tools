@@ -2,7 +2,7 @@ import pytest
 import sys
 import subprocess
 from unittest.mock import patch, MagicMock
-from pypaya_python_tools import PipPackageManager, PackageManagerError
+from pypaya_python_tools.package_management import PipPackageManager, PackageManagerError
 
 
 @pytest.fixture

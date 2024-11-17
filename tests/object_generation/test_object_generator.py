@@ -2,7 +2,7 @@ import pytest
 from collections import OrderedDict
 from datetime import datetime, date, time
 from pypaya_python_tools.imports.dynamic_importer import DynamicImporter, ImportConfig
-from pypaya_python_tools import ConfigurableObjectGenerator
+from pypaya_python_tools.object_generation import ConfigurableObjectGenerator
 
 
 @pytest.fixture

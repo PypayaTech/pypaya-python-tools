@@ -1,5 +1,5 @@
 import pytest
-from pypaya_python_tools import PythonREPL
+from pypaya_python_tools.execution import PythonREPL
 
 
 @pytest.fixture

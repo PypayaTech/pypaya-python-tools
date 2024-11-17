@@ -1,7 +1,7 @@
 import pytest
 import subprocess
 from unittest.mock import patch, MagicMock
-from pypaya_python_tools import CondaPackageManager, PackageManagerError
+from pypaya_python_tools.package_management import CondaPackageManager, PackageManagerError
 
 
 @pytest.fixture
