@@ -6,6 +6,6 @@ __all__ = [
     "decorating",
     "execution",
     "imports",
-    "object_generation",
+    "class_instantiation",
     "package_management"
 ]

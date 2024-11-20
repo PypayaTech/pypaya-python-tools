@@ -2,13 +2,13 @@ import pytest
 from collections import OrderedDict
 from datetime import datetime, date, time
 from pypaya_python_tools.imports.dynamic_importer import DynamicImporter, ImportConfig
-from pypaya_python_tools.object_generation import ConfigurableObjectGenerator
+from pypaya_python_tools.class_instantiation import ClassInstanceFactory
 
 
 @pytest.fixture
 def generator():
     importer = DynamicImporter(ImportConfig())
-    return ConfigurableObjectGenerator(importer)
+    return ClassInstanceFactory(importer)
 
 
 def test_create_simple_object(generator):
@@ -72,7 +72,7 @@ def test_create_multiple_objects(generator):
         {"module": "datetime", "class": "date", "args": [2023, 5, 17]},
         {"module": "datetime", "class": "time", "args": [14, 30]}
     ]
-    results = generator.create_from_config(config)
+    results = generator.create(config)
     assert len(results) == 2
     assert results[0] == date(2023, 5, 17)
     assert results[1] == time(14, 30)

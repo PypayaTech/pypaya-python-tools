@@ -5,13 +5,13 @@ import copy
 from pypaya_python_tools.imports.dynamic_importer import DynamicImporter, ImportConfig
 
 
-class ConfigurableObjectGenerator:
-    """Generates Python objects from a given configuration."""
+class ClassInstanceFactory:
+    """Creates class instances from string-based module and class configurations."""
 
     def __init__(self,
                  dynamic_importer: DynamicImporter = None):
         """
-        Initialize the ConfigurableObjectGenerator.
+        Initialize the ClassInstanceFactory.
 
         Args:
             dynamic_importer (DynamicImporter): An instance of DynamicImporter for flexible importing.
@@ -19,25 +19,45 @@ class ConfigurableObjectGenerator:
         self.importer = dynamic_importer or DynamicImporter(ImportConfig())
         self.logger = logging.getLogger(__name__)
 
-    def create(self, config: Dict[str, Any]) -> Any:
+    def create(self, config: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Union[Any, List[Any]]:
         """
-        Create an object based on the provided configuration.
+        Create one or multiple objects based on the provided configuration.
 
         Args:
-            config (Dict[str, Any]): Configuration dictionary for object creation.
+            config (Union[Dict[str, Any], List[Dict[str, Any]]]): Configuration for object(s) creation.
+                Can be either a single configuration dictionary or a list of configuration dictionaries.
+                For a single instance, the dictionary must include:
+                - 'module': str - the module path (e.g., 'datetime')
+                - 'class': str (optional) - the class name (e.g., 'datetime')
+                And may include:
+                - 'args': list - positional arguments for the class constructor
+                - 'kwargs': dict - keyword arguments for the class constructor
 
         Returns:
-            Any: The created object.
+            Union[Any, List[Any]]: The created object(s).
 
         Raises:
             ValueError: If the configuration is invalid.
             ImportError: If a module cannot be imported.
             TypeError: If the arguments don't match the class constructor.
         """
+        if isinstance(config, list):
+            return [self.create(item) for item in config]
+
         if not isinstance(config, dict):
             return config
 
         config_copy = copy.deepcopy(config)
+
+        # Validate args and kwargs if present
+        if "args" in config_copy and not isinstance(config_copy["args"], list):
+            raise ValueError("'args' must be a list")
+        if "kwargs" in config_copy and not isinstance(config_copy["kwargs"], dict):
+            raise ValueError("'kwargs' must be a dictionary")
+
+        # Validate class name if present
+        if "class" in config_copy and not isinstance(config_copy["class"], str):
+            raise ValueError("'class' must be a string")
 
         # Handle the case where the entire config is a valid object
         if "module" not in config_copy and "class" not in config_copy:
@@ -80,25 +100,11 @@ class ConfigurableObjectGenerator:
             self.logger.error(f"Error creating object from {module_name}: {str(e)}")
             raise
 
-    def create_from_config(self, config: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Union[Any, List[Any]]:
-        """
-        Create one or multiple objects from a configuration.
-
-        Args:
-            config (Union[Dict[str, Any], List[Dict[str, Any]]]): Configuration for object(s) creation.
-
-        Returns:
-            Union[Any, List[Any]]: Created object(s).
-        """
-        if isinstance(config, list):
-            return [self.create(item) for item in config]
-        return self.create(config)
-
 
 def main():
     # Initialize the DynamicImporter and ConfigurableObjectGenerator
     importer = DynamicImporter(ImportConfig())
-    generator = ConfigurableObjectGenerator(importer)
+    generator = ClassInstanceFactory(importer)
 
     # Example 1: Create a datetime object
     date_config = {
