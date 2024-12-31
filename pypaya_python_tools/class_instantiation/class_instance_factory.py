@@ -8,8 +8,7 @@ from pypaya_python_tools.imports.dynamic_importer import DynamicImporter, Import
 class ClassInstanceFactory:
     """Creates class instances from string-based module and class configurations."""
 
-    def __init__(self,
-                 dynamic_importer: DynamicImporter = None):
+    def __init__(self, dynamic_importer: DynamicImporter = None):
         """
         Initialize the ClassInstanceFactory.
 
@@ -26,12 +25,14 @@ class ClassInstanceFactory:
         Args:
             config (Union[Dict[str, Any], List[Dict[str, Any]]]): Configuration for object(s) creation.
                 Can be either a single configuration dictionary or a list of configuration dictionaries.
-                For a single instance, the dictionary must include:
+                For a single instance, the dictionary must include one of:
                 - 'module': str - the module path (e.g., 'datetime')
-                - 'class': str (optional) - the class name (e.g., 'datetime')
+                - 'file': str - path to a Python file
                 And may include:
+                - 'class': str - the class name (e.g., 'datetime')
                 - 'args': list - positional arguments for the class constructor
                 - 'kwargs': dict - keyword arguments for the class constructor
+                - 'base_path': str (optional) - base path for module imports
 
         Returns:
             Union[Any, List[Any]]: The created object(s).
@@ -60,24 +61,35 @@ class ClassInstanceFactory:
             raise ValueError("'class' must be a string")
 
         # Handle the case where the entire config is a valid object
-        if "module" not in config_copy and "class" not in config_copy:
+        if "module" not in config_copy and "file" not in config_copy and "class" not in config_copy:
             return config_copy
 
-        if "module" not in config_copy:
-            raise ValueError("Configuration must include a 'module' key")
-
-        module_name = config_copy.pop("module")
+        module_name = config_copy.pop("module", None)
+        base_path = config_copy.pop("base_path", None)
+        file_path = config_copy.pop("file", None)
         class_name = config_copy.pop("class", None)
         args = config_copy.pop("args", [])
         kwargs = config_copy.pop("kwargs", {})
 
-        try:
-            module = self.importer.import_module(module_name)
+        if not module_name and not file_path:
+            raise ValueError("Configuration must include either a 'module' or 'file' key")
 
-            if class_name:
-                class_obj = self.importer.import_object_from_module(f"{module_name}.{class_name}")
+        try:
+            # Handle file-based imports
+            if file_path:
+                if class_name:
+                    class_obj = self.importer.import_object_from_file(file_path, class_name)
+                else:
+                    class_obj = self.importer.import_file(file_path)
+            # Handle module-based imports
             else:
-                class_obj = module
+                if class_name:
+                    class_obj = self.importer.import_object_from_module(
+                        f"{module_name}.{class_name}",
+                        base_path=base_path
+                    )
+                else:
+                    class_obj = self.importer.import_module(module_name, base_path=base_path)
 
             if inspect.isclass(class_obj) and inspect.isabstract(class_obj):
                 raise ValueError(f"Cannot instantiate abstract class: {class_obj.__name__}")
@@ -93,11 +105,11 @@ class ClassInstanceFactory:
                     kwargs[key] = [self.create(item) if isinstance(item, dict) else item for item in value]
 
             return class_obj(*args, **kwargs)
-        except ImportError:
-            self.logger.error(f"Error importing module {module_name}")
+        except (ImportError, FileNotFoundError) as e:
+            self.logger.error(f"Error importing object: {str(e)}")
             raise
         except Exception as e:
-            self.logger.error(f"Error creating object from {module_name}: {str(e)}")
+            self.logger.error(f"Error creating object: {str(e)}")
             raise
 
 

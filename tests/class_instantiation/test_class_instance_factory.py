@@ -80,7 +80,7 @@ def test_create_multiple_objects(generator):
 
 def test_invalid_config(generator):
     config = {"class": "datetime"}
-    with pytest.raises(ValueError, match="Configuration must include a 'module' key"):
+    with pytest.raises(ValueError, match="Configuration must include either a 'module' or 'file' key"):
         generator.create(config)
 
 

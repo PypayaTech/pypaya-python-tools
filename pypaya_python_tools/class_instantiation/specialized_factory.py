@@ -1,6 +1,7 @@
-from typing import Dict, Any, TypeVar, Generic, Optional, Type, List, Callable
+from typing import Dict, Any, TypeVar, Generic, Optional, Type, List, Callable, Union
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from pypaya_python_tools.class_instantiation.class_instance_factory import ClassInstanceFactory
 
 
@@ -24,14 +25,20 @@ class FactoryConfig:
     args: List[Any] = None
     kwargs: Dict[str, Any] = None
     module: Optional[str] = None
+    base_path: Optional[str] = None
+    file: Optional[str] = None
 
 
 class SpecializedFactory(ABC, Generic[T]):
     """Base factory for creating specialized types of objects.
 
-    Supports:
-    - Built-in type mappings
-    - Custom implementations
+    Primary purpose:
+    - Provides convenient mappings for predefined framework classes to their module paths
+    - Allows custom implementations through explicit module/file specifications
+
+    Features:
+    - Built-in type mappings for framework classes
+    - Support for custom implementations via module path or file path
     - Special case handling
     - Type validation
     - Flexible configuration formats
@@ -41,7 +48,8 @@ class SpecializedFactory(ABC, Generic[T]):
             self,
             base_class: Optional[Type[T]] = None,
             allow_custom: bool = True,
-            class_instance_factory: Optional[ClassInstanceFactory] = None
+            class_instance_factory: Optional[ClassInstanceFactory] = None,
+            base_path: Optional[Union[str, Path]] = None
     ):
         """Initialize factory.
 
@@ -49,9 +57,11 @@ class SpecializedFactory(ABC, Generic[T]):
             base_class: Base class that all created objects must inherit from
             allow_custom: Whether to allow custom implementations
             class_instance_factory: Optional custom ClassInstanceFactory instance
+            base_path: Optional base path for module imports
         """
         self.base_class = base_class
         self.allow_custom = allow_custom
+        self.base_path = base_path
         self.type_mapping: Dict[str, str] = {}
         self.special_handlers: Dict[str, Callable[[Dict[str, Any]], T]] = {}
         self.class_instance_factory = class_instance_factory or ClassInstanceFactory()
@@ -112,15 +122,23 @@ class SpecializedFactory(ABC, Generic[T]):
                 class_name=class_name,
                 args=config.pop("args", []),
                 kwargs=config.pop("kwargs", {}),
-                module=config.pop("module", None)
+                module=config.pop("module", None),
+                base_path=config.pop("base_path", None),
+                file = config.pop("file", None)
             )
 
         # Handle flat format
+        module = config.pop("module", None)
+        base_path = config.pop("base_path", None)
+        file = config.pop("file", None)
+
         return FactoryConfig(
             class_name=class_name,
             args=[],
             kwargs=config,
-            module=config.pop("module", None) if "module" in config else None
+            module=module,
+            base_path=base_path,
+            file=file
         )
 
     def build(self, config: Dict[str, Any]) -> T:
@@ -128,9 +146,14 @@ class SpecializedFactory(ABC, Generic[T]):
 
         Args:
             config: Configuration dictionary for object creation.
-                   Must include 'class_name'.
-                   May include 'module' for custom implementations.
-                   Can use either flat or explicit args/kwargs format.
+                   Must include:
+                   - 'class_name': Name of the class to instantiate
+                   Optional fields:
+                   - 'module': Module path for custom implementations
+                   - 'file': File path for custom implementations
+                   - 'base_path': Base path for import resolution
+                   - 'args': List of positional arguments
+                   - 'kwargs': Dictionary of keyword arguments
 
         Returns:
             Created instance
@@ -151,7 +174,7 @@ class SpecializedFactory(ABC, Generic[T]):
                 )
 
             # Handle custom implementations
-            if normalized_config.module:
+            if normalized_config.module or "file" in config:
                 if not self.allow_custom:
                     raise FactoryValidationError(
                         f"Custom implementations not allowed in {self.__class__.__name__}"
@@ -170,12 +193,22 @@ class SpecializedFactory(ABC, Generic[T]):
 
     def _create_custom_implementation(self, config: FactoryConfig) -> T:
         """Create instance from custom implementation."""
-        instance = self.class_instance_factory.create({
-            "module": config.module,
+        factory_config = {
             "class": config.class_name,
-            "args": config.args,
-            "kwargs": config.kwargs
-        })
+            "args": config.args or [],
+            "kwargs": config.kwargs or {}
+        }
+
+        # Handle file-based custom implementation
+        if config.file:
+            factory_config["file"] = config.file
+        # Handle module-based custom implementation
+        else:
+            factory_config["module"] = config.module
+            if config.base_path or self.base_path:
+                factory_config["base_path"] = config.base_path or self.base_path
+
+        instance = self.class_instance_factory.create(factory_config)
         return self._validate_instance(instance)
 
     def _create_builtin_implementation(self, config: FactoryConfig) -> T:
@@ -189,6 +222,7 @@ class SpecializedFactory(ABC, Generic[T]):
 
         instance = self.class_instance_factory.create({
             "module": self.type_mapping[config.class_name],
+            "base_path": self.base_path,
             "class": config.class_name,
             "args": config.args,
             "kwargs": config.kwargs
