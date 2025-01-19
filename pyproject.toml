@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pypaya-python-tools"
-version = "0.10.0"
+version = "0.10.2"
 description = "Awesome Python code for Python developers to make working with Python easier."
 readme = "README.md"
 requires-python = ">=3.7"
@@ -43,6 +43,8 @@ packages = [
     "pypaya_python_tools.decorating",
     "pypaya_python_tools.execution",
     "pypaya_python_tools.importing",
+    "pypaya_python_tools.importing.resolvers",
     "pypaya_python_tools.object_access",
+    "pypaya_python_tools.object_access.handlers",
     "pypaya_python_tools.package_management",
 ]
