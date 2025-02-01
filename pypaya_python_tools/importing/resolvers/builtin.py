@@ -1,36 +1,25 @@
 import builtins
-from typing import Dict, Any
-from pypaya_python_tools.importing.definitions import SourceType, ImportSource
+from typing import Any
 from pypaya_python_tools.importing.exceptions import ResolverError
 from pypaya_python_tools.importing.resolvers.base import ImportResolver, ResolveResult
+from pypaya_python_tools.importing.source import ImportSource, SourceType
 
 
 class BuiltinResolver(ImportResolver):
-    """Handles importing from builtins."""
+    """Resolver for Python built-in objects."""
 
     def can_handle(self, source: ImportSource) -> bool:
         return source.type == SourceType.BUILTIN
 
-    def resolve(self, source: ImportSource) -> ResolveResult:
-        """
-        Resolve a builtin by name.
-
-        The location parameter is ignored for builtins as they are always
-        imported from the builtins module.
-        """
+    def _do_resolve(self, source: ImportSource) -> ResolveResult[Any]:
         if not source.name:
-            raise ResolverError("Builtin name must be specified")
+            raise ResolverError("Name must be specified for builtin resolution")
 
-        if not hasattr(builtins, source.name):
-            raise ResolverError(f"No builtin named '{source.name}'")
-
-        metadata: Dict[str, Any] = {
-            "builtin": True,
-            "name": source.name,
-            "module": builtins
-        }
-
-        return ResolveResult(
-            getattr(builtins, source.name),
-            metadata=metadata
-        )
+        try:
+            value = getattr(builtins, source.name)
+            return ResolveResult(
+                value=value,
+                metadata={"type": "builtin", "name": source.name}
+            )
+        except AttributeError as e:
+            raise ResolverError(f"Builtin {source.name} not found") from e
