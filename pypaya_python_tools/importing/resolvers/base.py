@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, TypeVar, Generic
 from dataclasses import dataclass
-from pypaya_python_tools.importing.security import SecurityContext
+from pypaya_python_tools.importing.security import ImportSecurityContext
 from pypaya_python_tools.importing.definitions import ImportSource
 
 
@@ -22,7 +22,7 @@ class ResolveResult(Generic[T]):
 class ImportResolver(ABC):
     """Base class for all import resolvers."""
 
-    def __init__(self, security_context: SecurityContext):
+    def __init__(self, security_context: ImportSecurityContext):
         self.security = security_context
 
     @abstractmethod

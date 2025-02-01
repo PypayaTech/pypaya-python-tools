@@ -28,3 +28,8 @@ class BuilderError(ObjectAccessError):
 class InvalidStateError(BuilderError):
     """Raised when builder is used in invalid state."""
     pass
+
+
+class ObjectAccessSecurityError(ObjectAccessError):
+    """Raised when security constraints are violated during object access."""
+    pass

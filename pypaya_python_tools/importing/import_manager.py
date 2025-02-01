@@ -1,6 +1,6 @@
 from typing import Dict, Any
 from pypaya_python_tools.importing.definitions import SourceType, ImportSource
-from pypaya_python_tools.importing.security import SecurityContext, DEFAULT_SECURITY
+from pypaya_python_tools.importing.security import ImportSecurityContext, DEFAULT_IMPORT_SECURITY
 from pypaya_python_tools.importing.exceptions import ResolverError
 from pypaya_python_tools.importing.resolvers.base import ImportResolver
 from pypaya_python_tools.importing.resolvers.builtin import BuiltinResolver
@@ -11,7 +11,7 @@ from pypaya_python_tools.importing.resolvers.module import ModuleResolver
 class ImportManager:
     """Central manager for import operations."""
 
-    def __init__(self, security_context: SecurityContext = DEFAULT_SECURITY):
+    def __init__(self, security_context: ImportSecurityContext = DEFAULT_IMPORT_SECURITY):
         self.security = security_context
         self.resolvers: Dict[SourceType, ImportResolver] = {}
         self._register_default_resolvers()

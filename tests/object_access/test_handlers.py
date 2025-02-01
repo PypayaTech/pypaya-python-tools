@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 import pytest
 from dataclasses import dataclass
 from typing import Any
-from pypaya_python_tools.importing.security import SecurityContext, STRICT_SECURITY, SecurityError
+from pypaya_python_tools.object_access.security import ObjectAccessSecurityContext, STRICT_OBJECT_ACCESS_SECURITY
 from pypaya_python_tools.object_access.definitions import AccessType, ObjectAccess
 from pypaya_python_tools.object_access.exceptions import (
     InstantiationError,
-    CallError
+    CallError,
+    ObjectAccessSecurityError
 )
 from pypaya_python_tools.object_access.handlers.direct import DirectHandler
 from pypaya_python_tools.object_access.handlers.instantiate import InstantiateHandler
@@ -64,7 +65,7 @@ class ConcreteImplementation(NonABCAbstractClass):
 class TestDirectHandler:
     @pytest.fixture
     def handler(self):
-        return DirectHandler(SecurityContext())
+        return DirectHandler(ObjectAccessSecurityContext())
 
     def test_can_handle(self, handler):
         access = ObjectAccess(AccessType.DIRECT)
@@ -106,7 +107,7 @@ class TestDirectHandler:
 class TestInstantiateHandler:
     @pytest.fixture
     def handler(self):
-        return InstantiateHandler(SecurityContext())
+        return InstantiateHandler(ObjectAccessSecurityContext())
 
     def test_can_handle(self, handler):
         access = ObjectAccess(AccessType.INSTANTIATE)
@@ -179,16 +180,16 @@ class TestInstantiateHandler:
         assert isinstance(result.value, ConcreteClass)
 
     def test_security_check(self):
-        handler = InstantiateHandler(STRICT_SECURITY)
+        handler = InstantiateHandler(STRICT_OBJECT_ACCESS_SECURITY)
         access = ObjectAccess(AccessType.INSTANTIATE)
-        with pytest.raises(SecurityError):
+        with pytest.raises(ObjectAccessSecurityError):
             handler.handle(TestClass, access)
 
 
 class TestCallHandler:
     @pytest.fixture
     def handler(self):
-        return CallHandler(SecurityContext())
+        return CallHandler(ObjectAccessSecurityContext())
 
     def test_can_handle(self, handler):
         access = ObjectAccess(AccessType.CALL)
@@ -216,16 +217,16 @@ class TestCallHandler:
             handler.handle(func, access)
 
     def test_security_check(self):
-        handler = CallHandler(STRICT_SECURITY)
+        handler = CallHandler(STRICT_OBJECT_ACCESS_SECURITY)
         access = ObjectAccess(AccessType.CALL, args=(1,))
-        with pytest.raises(SecurityError):
+        with pytest.raises(ObjectAccessSecurityError):
             handler.handle(lambda x: x, access)
 
 
 class TestAttributeHandler:
     @pytest.fixture
     def handler(self):
-        return AttributeHandler(SecurityContext())
+        return AttributeHandler(ObjectAccessSecurityContext())
 
     @pytest.fixture
     def test_obj(self):
@@ -253,7 +254,7 @@ class TestAttributeHandler:
             handler.handle(test_obj, access)
 
     def test_security_check(self, test_obj):
-        handler = AttributeHandler(STRICT_SECURITY)
+        handler = AttributeHandler(STRICT_OBJECT_ACCESS_SECURITY)
         access = ObjectAccess(AccessType.SET, args=("value", "new_value"))
-        with pytest.raises(SecurityError):
+        with pytest.raises(ObjectAccessSecurityError):
             handler.handle(test_obj, access)

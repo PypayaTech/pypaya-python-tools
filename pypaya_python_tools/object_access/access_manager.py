@@ -1,6 +1,6 @@
 from typing import Dict, Any
 from pypaya_python_tools.object_access.definitions import AccessType, ObjectAccess
-from pypaya_python_tools.importing.security import SecurityContext, DEFAULT_SECURITY
+from pypaya_python_tools.object_access.security import ObjectAccessSecurityContext, DEFAULT_OBJECT_ACCESS_SECURITY
 from pypaya_python_tools.object_access.exceptions import AccessError
 from pypaya_python_tools.object_access.handlers.base import AccessHandler
 from pypaya_python_tools.object_access.handlers.instantiate import InstantiateHandler
@@ -12,7 +12,7 @@ from pypaya_python_tools.object_access.handlers.direct import DirectHandler
 class AccessManager:
     """Manages object access operations."""
 
-    def __init__(self, security_context: SecurityContext = DEFAULT_SECURITY):
+    def __init__(self, security_context: ObjectAccessSecurityContext = DEFAULT_OBJECT_ACCESS_SECURITY):
         self.security = security_context
         self.handlers: Dict[AccessType, AccessHandler] = {}
         self._register_default_handlers()

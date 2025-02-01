@@ -2,18 +2,18 @@ import builtins
 import pytest
 from pathlib import Path
 from pypaya_python_tools.importing.definitions import SourceType, ImportSource
-from pypaya_python_tools.importing.security import SecurityContext, STRICT_SECURITY, SecurityError
+from pypaya_python_tools.importing.security import ImportSecurityContext, STRICT_IMPORT_SECURITY
 from pypaya_python_tools.importing.resolvers.base import ResolveResult
 from pypaya_python_tools.importing.resolvers.module import ModuleResolver
 from pypaya_python_tools.importing.resolvers.file import FileResolver
 from pypaya_python_tools.importing.resolvers.builtin import BuiltinResolver
-from pypaya_python_tools.importing.exceptions import ResolverError
+from pypaya_python_tools.importing.exceptions import ResolverError, ImportSecurityError
 
 
 class TestModuleResolver:
     @pytest.fixture
     def resolver(self):
-        return ModuleResolver(SecurityContext())
+        return ModuleResolver(ImportSecurityContext())
 
     def test_can_handle(self, resolver):
         assert resolver.can_handle(ImportSource(SourceType.MODULE, "json"))
@@ -43,7 +43,7 @@ class TestModuleResolver:
 class TestFileResolver:
     @pytest.fixture
     def resolver(self):
-        return FileResolver(SecurityContext())
+        return FileResolver(ImportSecurityContext())
 
     @pytest.fixture
     def test_file(self, tmp_path):
@@ -97,12 +97,12 @@ TEST_CONSTANT = "constant"
         assert result.value == "constant"
 
     def test_security_checks(self):
-        resolver = FileResolver(STRICT_SECURITY)
-        with pytest.raises(SecurityError):
+        resolver = FileResolver(STRICT_IMPORT_SECURITY)
+        with pytest.raises(ImportSecurityError):
             resolver.resolve(ImportSource(SourceType.FILE, "test.py"))
 
     def test_trusted_paths(self, tmp_path):
-        security = SecurityContext(trusted_paths=[tmp_path])
+        security = ImportSecurityContext(trusted_paths=[tmp_path])
         resolver = FileResolver(security)
 
         safe_file = tmp_path / "safe.py"
@@ -114,14 +114,14 @@ TEST_CONSTANT = "constant"
         resolver.resolve(ImportSource(SourceType.FILE, safe_file))
 
         # Unsafe path should fail
-        with pytest.raises(SecurityError):
+        with pytest.raises(ImportSecurityError):
             resolver.resolve(ImportSource(SourceType.FILE, unsafe_file))
 
 
 class TestBuiltinResolver:
     @pytest.fixture
     def resolver(self):
-        return BuiltinResolver(SecurityContext())
+        return BuiltinResolver(ImportSecurityContext())
 
     def test_can_handle(self, resolver):
         # Valid builtin source

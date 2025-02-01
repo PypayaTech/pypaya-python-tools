@@ -1,8 +1,8 @@
 import pytest
-from pypaya_python_tools.importing.security import SecurityContext, STRICT_SECURITY, SecurityError
+from pypaya_python_tools.object_access.security import ObjectAccessSecurityContext, STRICT_OBJECT_ACCESS_SECURITY
 from pypaya_python_tools.object_access.definitions import AccessType, ObjectAccess
 from pypaya_python_tools.object_access.access_manager import AccessManager
-from pypaya_python_tools.object_access.exceptions import InstantiationError
+from pypaya_python_tools.object_access.exceptions import ObjectAccessSecurityError
 
 
 class TestAccessManager:
@@ -58,13 +58,13 @@ class TestAccessManager:
         assert obj.value == "new_test"
 
     def test_security_restrictions(self):
-        manager = AccessManager(STRICT_SECURITY)
+        manager = AccessManager(STRICT_OBJECT_ACCESS_SECURITY)
 
         class TestClass:
             pass
 
         # Test instantiation restriction
-        with pytest.raises(SecurityError):
+        with pytest.raises(ObjectAccessSecurityError):
             manager.access_object(
                 TestClass,
                 ObjectAccess(AccessType.INSTANTIATE)
@@ -72,7 +72,7 @@ class TestAccessManager:
 
         # Test modification restriction
         obj = TestClass()
-        with pytest.raises(SecurityError):
+        with pytest.raises(ObjectAccessSecurityError):
             manager.access_object(
                 obj,
                 ObjectAccess(AccessType.SET, args=("value", 42))
@@ -88,6 +88,6 @@ class TestAccessManager:
             def handle(self, obj, access):
                 return AccessResult("custom_result")
 
-        manager.register_handler("CUSTOM", CustomHandler(SecurityContext()))
+        manager.register_handler("CUSTOM", CustomHandler(ObjectAccessSecurityContext()))
         result = manager.access_object(None, ObjectAccess("CUSTOM"))
         assert result == "custom_result"

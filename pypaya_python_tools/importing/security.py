@@ -3,23 +3,10 @@ from typing import Optional, Union
 from pathlib import Path
 
 
-class SecurityError(Exception):
-    """Raised when security constraints are violated during imports or object access."""
-    pass
-
-
 @dataclass
-class SecurityContext:
-    """Security settings for import and object access operations.
-
-    Controls:
-    - File imports (allow_file_imports, trusted_paths)
-    - Dynamic object creation (allow_dynamic_creation)
-    - Object modification (allow_modification)
-    """
+class ImportSecurityContext:
+    """Security settings for import operations."""
     allow_file_imports: bool = True
-    allow_dynamic_creation: bool = True
-    allow_modification: bool = True
     trusted_paths: Optional[list[Path]] = None
 
     def __post_init__(self):
@@ -44,9 +31,7 @@ class SecurityContext:
 
 
 # Common configurations
-DEFAULT_SECURITY = SecurityContext()
-STRICT_SECURITY = SecurityContext(
-    allow_file_imports=False,
-    allow_dynamic_creation=False,
-    allow_modification=False
+DEFAULT_IMPORT_SECURITY = ImportSecurityContext()
+STRICT_IMPORT_SECURITY = ImportSecurityContext(
+    allow_file_imports=False
 )

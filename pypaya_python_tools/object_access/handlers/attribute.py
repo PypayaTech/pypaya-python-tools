@@ -1,5 +1,5 @@
 from typing import Any
-from pypaya_python_tools.importing.security import SecurityError
+from pypaya_python_tools.object_access.exceptions import ObjectAccessSecurityError
 from pypaya_python_tools.object_access.definitions import AccessType, ObjectAccess
 from pypaya_python_tools.object_access.handlers.base import AccessHandler, AccessResult
 
@@ -12,7 +12,7 @@ class AttributeHandler(AccessHandler):
 
     def _validate_access(self, obj: Any, access: ObjectAccess) -> None:
         if access.type == AccessType.SET and not self.security.allow_modification:
-            raise SecurityError("Attribute modification is not allowed")
+            raise ObjectAccessSecurityError("Attribute modification is not allowed")
 
     def handle(self, obj: Any, access: ObjectAccess) -> AccessResult:
         self._validate_access(obj, access)

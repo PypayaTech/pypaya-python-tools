@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, TypeVar, Generic
 from dataclasses import dataclass
-from pypaya_python_tools.importing.security import SecurityContext
+from pypaya_python_tools.object_access.security import ObjectAccessSecurityContext
 from pypaya_python_tools.object_access.definitions import ObjectAccess
 
 
@@ -22,7 +22,7 @@ class AccessResult(Generic[T]):
 class AccessHandler(ABC):
     """Base class for all access handlers."""
 
-    def __init__(self, security_context: SecurityContext):
+    def __init__(self, security_context: ObjectAccessSecurityContext):
         self.security = security_context
 
     @abstractmethod

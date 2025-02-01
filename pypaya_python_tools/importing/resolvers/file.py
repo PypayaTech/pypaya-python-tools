@@ -3,9 +3,8 @@ import importlib.util
 from pathlib import Path
 from typing import Dict, Any
 from pypaya_python_tools.importing.definitions import SourceType, ImportSource
-from pypaya_python_tools.importing.exceptions import ResolverError
+from pypaya_python_tools.importing.exceptions import ResolverError, ImportSecurityError
 from pypaya_python_tools.importing.resolvers.base import ImportResolver, ResolveResult
-from pypaya_python_tools.importing.security import SecurityError
 
 
 class FileResolver(ImportResolver):
@@ -16,11 +15,11 @@ class FileResolver(ImportResolver):
 
     def _validate_source(self, source: ImportSource) -> None:
         if not self.security.allow_file_imports:
-            raise SecurityError("File imports are not allowed")
+            raise ImportSecurityError("File imports are not allowed")
 
         path = Path(source.location)
         if not self.security.is_safe_path(path):
-            raise SecurityError(f"Path {path} is not in trusted paths")
+            raise ImportSecurityError(f"Path {path} is not in trusted paths")
 
     def resolve(self, source: ImportSource) -> ResolveResult:
         self._validate_source(source)

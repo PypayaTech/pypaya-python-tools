@@ -1,6 +1,6 @@
 import inspect
 from typing import Any, cast, Type
-from pypaya_python_tools.importing.security import SecurityError
+from pypaya_python_tools.object_access.exceptions import ObjectAccessSecurityError
 from pypaya_python_tools.object_access.definitions import AccessType, ObjectAccess
 from pypaya_python_tools.object_access.exceptions import InstantiationError
 from pypaya_python_tools.object_access.handlers.base import AccessHandler, AccessResult
@@ -40,7 +40,7 @@ class InstantiateHandler(AccessHandler):
 
     def _validate_access(self, obj: Any, access: ObjectAccess) -> None:
         if not self.security.allow_dynamic_creation:
-            raise SecurityError("Dynamic object creation is not allowed")
+            raise ObjectAccessSecurityError("Dynamic object creation is not allowed")
 
         if self._is_abstract(cast(Type, obj)):
             raise InstantiationError(f"Cannot instantiate abstract class: {obj.__name__}")
