@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, TypeVar, Generic
 from dataclasses import dataclass
-from pypaya_python_tools.importing.security import ImportSecurityContext
-from pypaya_python_tools.importing.definitions import ImportSource
+from typing import Any, Dict, TypeVar, Generic
+from pypaya_python_tools.importing.security import ImportSecurity
+from pypaya_python_tools.importing.source import ImportSource
 
 
 T = TypeVar('T')
@@ -10,7 +10,7 @@ T = TypeVar('T')
 
 @dataclass
 class ResolveResult(Generic[T]):
-    """Result of a successful resolution."""
+    """Result of import resolution."""
     value: T
     metadata: Dict[str, Any] = None
 
@@ -20,32 +20,25 @@ class ResolveResult(Generic[T]):
 
 
 class ImportResolver(ABC):
-    """Base class for all import resolvers."""
+    """Base class for import resolvers."""
 
-    def __init__(self, security_context: ImportSecurityContext):
-        self.security = security_context
+    def __init__(self, security: ImportSecurity):
+        self.security = security
 
     @abstractmethod
     def can_handle(self, source: ImportSource) -> bool:
         """Check if this resolver can handle the source."""
         pass
 
-    @abstractmethod
     def resolve(self, source: ImportSource) -> ResolveResult:
-        """
-        Resolve and return the requested object.
+        """Template method for resolution with security."""
+        try:
+            self.security.enter_level()
+            return self._do_resolve(source)
+        finally:
+            self.security.exit_level()
 
-        Args:
-            source: Import source specification
-
-        Returns:
-            ResolveResult containing the resolved object and metadata
-
-        Raises:
-            ResolverError: If resolution fails
-        """
-        pass
-
-    def _validate_source(self, source: ImportSource) -> None:
-        """Validate source before resolution."""
+    @abstractmethod
+    def _do_resolve(self, source: ImportSource) -> ResolveResult:
+        """Actual resolution implementation."""
         pass
