@@ -1,11 +1,10 @@
 
 
 __all__ = [
-    "code_manipulation",
     "coding_with_llms",
     "decorating",
     "execution",
-    "imports",
-    "class_instantiation",
+    "importing",
+    "object_access",
     "package_management"
 ]
