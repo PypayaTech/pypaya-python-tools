@@ -1,70 +1,99 @@
-from typing import Any, Optional, Union, Dict
+from typing import Any, Optional, Union, Dict, Type, TypeVar
 from pathlib import Path
-from pypaya_python_tools.importing.definitions import SourceType, ImportSource
-from pypaya_python_tools.importing.import_manager import ImportManager
+from pypaya_python_tools.importing.exceptions import ImportingError
+from pypaya_python_tools.importing.manager import ImportManager
+from pypaya_python_tools.importing.security import ImportSecurity
+from pypaya_python_tools.importing.source import ImportSource, SourceType
+
+
+T = TypeVar('T')
+
+
+def import_module(name: str, security: Optional[ImportSecurity] = None) -> Any:
+    """Convenience function to import a module."""
+    manager = ImportManager(security)
+    return manager.import_module(name)
 
 
 def import_from_module(
-    module_name: str,
-    object_name: Optional[str] = None,
-    unsafe: bool = False
+        module: str,
+        name: str,
+        security: Optional[ImportSecurity] = None
 ) -> Any:
-    """Convenience function to import from module."""
-    source = ImportSource(
-        type=SourceType.MODULE,
-        location=module_name,
-        name=object_name,
-        unsafe=unsafe
-    )
-    return ImportManager().import_object(source)
+    """Convenience function to import from a module."""
+    manager = ImportManager(security)
+    return manager.import_from_module(module, name)
 
 
 def import_from_file(
-    file_path: Union[str, Path],
-    object_name: Optional[str] = None,
-    unsafe: bool = False
+        path: Union[str, Path],
+        name: Optional[str] = None,
+        security: Optional[ImportSecurity] = None
 ) -> Any:
-    """Convenience function to import from file."""
-    source = ImportSource(
-        type=SourceType.FILE,
-        location=file_path,
-        name=object_name,
-        unsafe=unsafe
-    )
-    return ImportManager().import_object(source)
+    """Convenience function to import from a file."""
+    manager = ImportManager(security)
+    return manager.import_from_file(path, name)
 
 
-def import_builtin(name: str) -> Any:
+def import_builtin(name: str, security: Optional[ImportSecurity] = None) -> Any:
     """Convenience function to import builtin."""
-    source = ImportSource(
-        type=SourceType.BUILTIN,
-        name=name
-    )
-    return ImportManager().import_object(source)
+    manager = ImportManager(security)
+    return manager.import_builtin(name)
 
 
-def import_object(path_spec: Union[str, Path, Dict[str, str]], name: str | None = None) -> Any:
+def import_class(
+        module: str,
+        class_name: str,
+        base_class: Optional[Type[T]] = None,
+        security: Optional[ImportSecurity] = None
+) -> Type[T]:
     """
-    Import an object by providing either a module path, file path, or a specification dictionary.
+    Import a class with optional base class validation.
 
     Args:
-        path_spec: Specifies the object location in one of these formats:
-            - module path (e.g., 'myapp.models')
-            - file path (e.g., '/path/to/module.py')
-            - dictionary with 'path' and optional 'name' keys
-              (e.g., {'path': 'myapp.models', 'name': 'MyClass'})
-            - full dotted path including object name
-              (e.g., 'myapp.models.MyClass')
-        name: Optional object name within module/file.
-              Ignored if path_spec is a dictionary with 'name' key
-              or if path_spec contains the object name.
+        module: Module path
+        class_name: Class name to import
+        base_class: Optional base class to validate against
+        security: Optional security settings
 
     Returns:
-        The imported object
+        Type[T]: Imported class
+    """
+    manager = ImportManager(security)
+    cls = manager.import_from_module(module, class_name)
+
+    if not isinstance(cls, type):
+        raise ImportingError(f"{class_name} is not a class")
+
+    if base_class and not issubclass(cls, base_class):
+        raise ImportingError(f"{class_name} is not a subclass of {base_class.__name__}")
+
+    return cls
+
+
+def import_object(
+        path_spec: Union[str, Path, Dict[str, str]],
+        name: Optional[str] = None,
+        security: Optional[ImportSecurity] = None
+    ) -> Any:
+    """
+    Import an object using various path specification formats.
+
+    Args:
+        path_spec: Object location specified as:
+            - module path ('myapp.models')
+            - file path ('/path/to/module.py')
+            - dict with 'path' and optional 'name' keys
+            - full dotted path ('myapp.models.MyClass')
+        name: Optional object name within module/file
+        security: Optional security settings
+
+    Returns:
+        Imported object
 
     Raises:
-        ImportError: If the object cannot be imported
-        ValueError: If the path specification format is invalid
+        ImportError: Import failure
+        ValueError: Invalid path specification
 
     Examples:
         # Separate path and name format
@@ -77,23 +106,33 @@ def import_object(path_spec: Union[str, Path, Dict[str, str]], name: str | None 
         # Full dotted path format
         obj4 = import_object('myapp.models.MyClass')
     """
+    manager = ImportManager(security)
+
     # Handle dictionary format
     if isinstance(path_spec, dict):
         if "path" not in path_spec:
-            raise ValueError("Dictionary path_spec must contain 'path' key")
+            raise ImportingError("Dictionary path_spec must contain 'path' key")
         name = path_spec.get("name", name)
         path_spec = path_spec["path"]
-    else:
-        path_spec = str(path_spec)
 
-        # Handle full dotted path format if no explicit name provided
-        if name is None and '.' in path_spec and not path_spec.endswith(".py"):
-            *module_parts, name = path_spec.rsplit('.', 1)
-            path_spec = '.'.join(module_parts)
+    path_str = str(path_spec)
 
-    if isinstance(path_spec, Path) or ('/' in str(path_spec) or '\\' in str(path_spec)):
-        source = ImportSource(type=SourceType.FILE, location=path_spec, name=name)
-    else:
-        source = ImportSource(type=SourceType.MODULE, location=path_spec, name=name)
+    # Handle full dotted path format
+    if (name is None and '.' in path_str and
+            not path_str.endswith('.py') and
+            not any(c in path_str for c in '/\\')):
+        *module_parts, name = path_str.rsplit('.', 1)
+        path_spec = '.'.join(module_parts)
 
-    return ImportManager().import_object(source)
+    # Determine source type
+    is_file = (isinstance(path_spec, Path) or
+               any(c in path_str for c in '/\\') or
+               path_str.endswith('.py'))
+
+    source = ImportSource(
+        type=SourceType.FILE if is_file else SourceType.MODULE,
+        location=path_spec,
+        name=name
+    )
+
+    return manager._resolve(source)

@@ -5,11 +5,11 @@ class ImportingError(Exception):
     pass
 
 
-class ResolverError(ImportingError):
-    """Raised when import resolver encounters an error."""
+class ImportingSecurityError(ImportingError):
+    """Security-related import errors."""
     pass
 
 
-class ImportSecurityError(ImportingError):
-    """Raised when security constraints are violated during imports."""
+class ResolverError(ImportingError):
+    """Resolver-specific errors."""
     pass
