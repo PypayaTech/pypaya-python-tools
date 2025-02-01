@@ -1,49 +1,93 @@
-import builtins
 import pytest
 from pathlib import Path
-from pypaya_python_tools.importing.definitions import SourceType, ImportSource
-from pypaya_python_tools.importing.security import ImportSecurityContext, STRICT_IMPORT_SECURITY
+from pypaya_python_tools.importing import ImportingSecurityError
+from pypaya_python_tools.importing.source import ImportSource, SourceType
+from pypaya_python_tools.importing.security import ImportSecurity
+from pypaya_python_tools.importing.exceptions import ResolverError, ImportingError
 from pypaya_python_tools.importing.resolvers.base import ResolveResult
 from pypaya_python_tools.importing.resolvers.module import ModuleResolver
 from pypaya_python_tools.importing.resolvers.file import FileResolver
-from pypaya_python_tools.importing.resolvers.builtin import BuiltinResolver
-from pypaya_python_tools.importing.exceptions import ResolverError, ImportSecurityError
 
 
 class TestModuleResolver:
     @pytest.fixture
-    def resolver(self):
-        return ModuleResolver(ImportSecurityContext())
+    def security(self):
+        return ImportSecurity()
+
+    @pytest.fixture
+    def resolver(self, security):
+        return ModuleResolver(security)
 
     def test_can_handle(self, resolver):
-        assert resolver.can_handle(ImportSource(SourceType.MODULE, "json"))
-        assert not resolver.can_handle(ImportSource(SourceType.FILE, "test.py"))
+        assert resolver.can_handle(ImportSource(type=SourceType.MODULE, location="json"))
+        assert not resolver.can_handle(ImportSource(type=SourceType.FILE, location="test.py"))
 
     def test_resolve_module(self, resolver):
-        source = ImportSource(SourceType.MODULE, "json")
-        result = resolver.resolve(source)
-        assert result.value.__name__ == "json"
+        result = resolver.resolve(ImportSource(
+            type=SourceType.MODULE,
+            location="json"
+        ))
         assert isinstance(result, ResolveResult)
+        assert result.value.__name__ == "json"
+        assert result.metadata["type"] == "module"
 
     def test_resolve_object_from_module(self, resolver):
-        source = ImportSource(SourceType.MODULE, "json", name="loads")
-        result = resolver.resolve(source)
+        result = resolver.resolve(ImportSource(
+            type=SourceType.MODULE,
+            location="json",
+            name="loads"
+        ))
         assert callable(result.value)
-        assert result.metadata["module"].__name__ == "json"
+        assert result.metadata["type"] == "module_attribute"
+        assert result.metadata["module"] == "json"
+        assert result.metadata["name"] == "loads"
 
-    def test_resolve_nonexistent_module(self, resolver):
-        with pytest.raises(ResolverError):
-            resolver.resolve(ImportSource(SourceType.MODULE, "nonexistent_module"))
+    def test_security_blocked_module(self, security, resolver):
+        security.blocked_modules.add("os")
+        with pytest.raises(ImportingSecurityError):
+            resolver.resolve(ImportSource(
+                type=SourceType.MODULE,
+                location="os"
+            ))
 
-    def test_resolve_nonexistent_attribute(self, resolver):
+    def test_security_trusted_modules(self, security, resolver):
+        security.trusted_modules = {"json"}
+        # Should work
+        resolver.resolve(ImportSource(
+            type=SourceType.MODULE,
+            location="json"
+        ))
+        # Should fail
+        with pytest.raises(ImportingSecurityError):
+            resolver.resolve(ImportSource(
+                type=SourceType.MODULE,
+                location="os"
+            ))
+
+    def test_nonexistent_module(self, resolver):
         with pytest.raises(ResolverError):
-            resolver.resolve(ImportSource(SourceType.MODULE, "json", name="nonexistent"))
+            resolver.resolve(ImportSource(
+                type=SourceType.MODULE,
+                location="nonexistent_module"
+            ))
+
+    def test_nonexistent_attribute(self, resolver):
+        with pytest.raises(ResolverError):
+            resolver.resolve(ImportSource(
+                type=SourceType.MODULE,
+                location="json",
+                name="nonexistent"
+            ))
 
 
 class TestFileResolver:
     @pytest.fixture
-    def resolver(self):
-        return FileResolver(ImportSecurityContext())
+    def security(self):
+        return ImportSecurity(allow_file_imports=True)
+
+    @pytest.fixture
+    def resolver(self, security):
+        return FileResolver(security)
 
     @pytest.fixture
     def test_file(self, tmp_path):
@@ -53,115 +97,80 @@ def test_function():
     return "test"
 
 TEST_CONSTANT = "constant"
+
+class TestClass:
+    def method(self):
+        return "method"
 """)
         return file_path
 
     def test_can_handle(self, resolver):
-        assert resolver.can_handle(ImportSource(SourceType.FILE, "test.py"))
-        assert not resolver.can_handle(ImportSource(SourceType.MODULE, "json"))
+        # Basic type checking
+        assert resolver.can_handle(ImportSource(type=SourceType.FILE, location="test.py"))
+        assert not resolver.can_handle(ImportSource(type=SourceType.MODULE, location="json"))
 
-    def test_resolve_file(self, resolver, test_file):
-        source = ImportSource(SourceType.FILE, test_file)
-        result = resolver.resolve(source)
-
-        # Check basic attributes
-        assert result is not None
-        assert result.metadata is not None
-        assert isinstance(result.metadata, dict)
-
-        # Check metadata
-        assert "file_path" in result.metadata
-        assert "module" in result.metadata
-        assert "module_name" in result.metadata
-        assert result.metadata["file_path"] == test_file
-        assert result.metadata["module"].__name__ == test_file.stem
-        assert result.metadata["module_name"] == test_file.stem
-
-        # Check value
+    def test_resolve_file_module(self, resolver, test_file):
+        # Test importing entire module from file
+        result = resolver.resolve(ImportSource(
+            type=SourceType.FILE,
+            location=test_file
+        ))
+        assert isinstance(result, ResolveResult)
+        assert result.metadata["type"] == "file_module"
         assert hasattr(result.value, "test_function")
-        assert hasattr(result.value, "TEST_CONSTANT")
-
-        # Verify functionality
-        assert result.value.test_function() == "test"
         assert result.value.TEST_CONSTANT == "constant"
 
-    def test_resolve_object_from_file(self, resolver, test_file):
-        source = ImportSource(SourceType.FILE, test_file, name="test_function")
-        result = resolver.resolve(source)
+    def test_resolve_function(self, resolver, test_file):
+        # Test importing specific function
+        result = resolver.resolve(ImportSource(
+            type=SourceType.FILE,
+            location=test_file,
+            name="test_function"
+        ))
         assert callable(result.value)
         assert result.value() == "test"
 
-    def test_resolve_constant_from_file(self, resolver, test_file):
-        source = ImportSource(SourceType.FILE, test_file, name="TEST_CONSTANT")
-        result = resolver.resolve(source)
-        assert result.value == "constant"
+    def test_resolve_class(self, resolver, test_file):
+        # Test importing class
+        result = resolver.resolve(ImportSource(
+            type=SourceType.FILE,
+            location=test_file,
+            name="TestClass"
+        ))
+        instance = result.value()
+        assert instance.method() == "method"
 
-    def test_security_checks(self):
-        resolver = FileResolver(STRICT_IMPORT_SECURITY)
-        with pytest.raises(ImportSecurityError):
-            resolver.resolve(ImportSource(SourceType.FILE, "test.py"))
+    def test_security_file_imports_disabled(self, security, resolver):
+        # Test when file imports are disabled
+        security.allow_file_imports = False
+        with pytest.raises(ImportingSecurityError):
+            resolver.resolve(ImportSource(
+                type=SourceType.FILE,
+                location="any.py"
+            ))
 
-    def test_trusted_paths(self, tmp_path):
-        security = ImportSecurityContext(trusted_paths=[tmp_path])
-        resolver = FileResolver(security)
+    def test_security_trusted_paths(self, security, resolver, tmp_path):
+        # Test trusted paths functionality
+        security.trusted_paths = {tmp_path}
 
+        # Safe file in trusted path
         safe_file = tmp_path / "safe.py"
         safe_file.write_text("x = 1")
 
+        # Unsafe file outside trusted paths
         unsafe_file = Path("unsafe.py")
 
-        # Safe path should work
-        resolver.resolve(ImportSource(SourceType.FILE, safe_file))
+        # Should work
+        resolver.resolve(ImportSource(type=SourceType.FILE, location=safe_file))
 
-        # Unsafe path should fail
-        with pytest.raises(ImportSecurityError):
-            resolver.resolve(ImportSource(SourceType.FILE, unsafe_file))
+        # Should fail
+        with pytest.raises(ImportingSecurityError):
+            resolver.resolve(ImportSource(type=SourceType.FILE, location=unsafe_file))
 
+    def test_malformed_file(self, resolver, tmp_path):
+        # Test handling of invalid Python files
+        bad_file = tmp_path / "bad.py"
+        bad_file.write_text("this is not valid python!!!")
 
-class TestBuiltinResolver:
-    @pytest.fixture
-    def resolver(self):
-        return BuiltinResolver(ImportSecurityContext())
-
-    def test_can_handle(self, resolver):
-        # Valid builtin source
-        assert resolver.can_handle(ImportSource(SourceType.BUILTIN, name="len"))
-
-        # Non-builtin sources
-        assert not resolver.can_handle(ImportSource(SourceType.MODULE, "json"))
-        assert not resolver.can_handle(ImportSource(SourceType.FILE, "test.py"))
-
-    def test_resolve_builtin(self, resolver):
-        source = ImportSource(SourceType.BUILTIN, name="len")
-        result = resolver.resolve(source)
-
-        # Check value
-        assert result.value is len
-
-        # Check metadata
-        assert result.metadata is not None
-        assert result.metadata["builtin"] is True
-        assert result.metadata["name"] == "len"
-        assert result.metadata["module"] is builtins
-
-        # Test functionality
-        assert result.value([1, 2, 3]) == 3
-
-    def test_resolve_nonexistent_builtin(self, resolver):
         with pytest.raises(ResolverError):
-            resolver.resolve(ImportSource(SourceType.BUILTIN, name="nonexistent"))
-
-    def test_builtin_source_validation(self):
-        # Must specify name
-        with pytest.raises(ValueError, match="name must be specified"):
-            ImportSource(SourceType.BUILTIN)
-
-        # Location should not be specified
-        with pytest.raises(ValueError, match="location should not be specified"):
-            ImportSource(SourceType.BUILTIN, location="builtins", name="len")
-
-        # Valid builtin source
-        source = ImportSource(SourceType.BUILTIN, name="len")
-        assert source.type == SourceType.BUILTIN
-        assert source.name == "len"
-        assert source.location is None
+            resolver.resolve(ImportSource(type=SourceType.FILE, location=bad_file))

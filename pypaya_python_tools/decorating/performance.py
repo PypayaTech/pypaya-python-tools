@@ -1,6 +1,6 @@
 import functools
 import time
-from typing import Any, Callable, TypeVar, Dict, Union
+from typing import Any, Callable, TypeVar, Dict
 
 
 T = TypeVar('T')
