@@ -3,42 +3,37 @@ import pytest
 from pypaya_python_tools.chains.execution import ExecutionChain
 from pypaya_python_tools.chains.base.state import ChainState
 from pypaya_python_tools.execution.exceptions import ExecutionError, ExecutionSecurityError
-from pypaya_python_tools.execution.security import ExecutionSecurity
+from pypaya_python_tools.code_analysis import (
+    StringPatternAnalyzer, ImportAnalyzer, SecurityAnalyzerChain
+)
 
 
 @pytest.fixture
-def permissive_security():
-    """Security config that allows all operations"""
-    return ExecutionSecurity(
-        allow_eval=True,
-        allow_exec=True,
-        allow_compile=True,
-        allow_subprocess=True,
-        allowed_modules={'json', 'os', 'sys'},
-        allowed_builtins={'print', 'len', 'str', 'int'}
-    )
+def permissive_analyzer():
+    """Security analyzer that allows most operations"""
+    return None  # No security analyzer means everything is allowed
 
 
 @pytest.fixture
-def restricted_security():
-    """Security config that restricts most operations"""
-    return ExecutionSecurity(
-        allow_eval=False,
-        allow_exec=False,
-        allow_compile=False,
-        allow_subprocess=False,
-        blocked_modules={'os', 'sys', 'subprocess'}
-    )
+def restricted_analyzer():
+    """Security analyzer that restricts most operations"""
+    return SecurityAnalyzerChain([
+        StringPatternAnalyzer(forbidden_patterns=["eval(", "exec("]),
+        ImportAnalyzer(
+            blocked_modules={"os", "sys", "subprocess"},
+            default_policy="allow"
+        )
+    ])
 
 
 @pytest.fixture
-def permissive_chain(permissive_security):
-    return ExecutionChain(security=permissive_security)
+def permissive_chain(permissive_analyzer):
+    return ExecutionChain(security_analyzer=permissive_analyzer)
 
 
 @pytest.fixture
-def restricted_chain(restricted_security):
-    return ExecutionChain(security=restricted_security)
+def restricted_chain(restricted_analyzer):
+    return ExecutionChain(security_analyzer=restricted_analyzer)
 
 
 # Tests with permissive security
@@ -83,20 +78,20 @@ def test_output_capture(permissive_chain):
 # Tests with restricted security
 def test_eval_denied(restricted_chain):
     with pytest.raises(ExecutionSecurityError) as exc_info:
-        restricted_chain.eval_expression("2 + 2")
-    assert "eval() is not allowed" in str(exc_info.value)
+        restricted_chain.eval_expression("eval('2 + 2')")
+    assert "Forbidden pattern" in str(exc_info.value)
 
 
 def test_compile_denied(restricted_chain):
-    with pytest.raises(ExecutionSecurityError) as exc_info:
-        restricted_chain.compile_code("x = 1")
-    assert "compile() is not allowed" in str(exc_info.value)
+    with pytest.raises(ExecutionError) as exc_info:
+        restricted_chain.compile_code("exec('x = 1')")
+    assert "Security violations" in str(exc_info.value)
 
 
 def test_subprocess_denied(restricted_chain):
     with pytest.raises(ExecutionSecurityError) as exc_info:
         restricted_chain.execute_code("import subprocess")
-    assert "subprocess usage is not allowed" in str(exc_info.value)
+    assert "Unauthorized import" in str(exc_info.value)
 
 
 # Error handling tests
@@ -165,3 +160,31 @@ import sys
 print('error message', file=sys.stderr)
 """)
     assert "error message" in permissive_chain.error_output
+
+
+def test_skip_security_check(restricted_chain):
+    """Test that skip_security_check allows executing code that would normally be blocked"""
+    # First part: verify code is blocked
+    analyzer = SecurityAnalyzerChain([
+        ImportAnalyzer(blocked_modules={"subprocess"}, default_policy="allow")
+    ])
+    chain1 = ExecutionChain(security_analyzer=analyzer)
+
+    with pytest.raises(ExecutionSecurityError):
+        chain1.execute_code("import subprocess")
+
+    # Second part: create a new chain and verify skip_security_check works
+    chain2 = ExecutionChain(security_analyzer=analyzer)
+    result = chain2.execute_code("import subprocess", skip_security_check=True)
+    assert result.last_result.error is None
+
+
+def test_analyze_code(restricted_chain):
+    violations = restricted_chain.analyze_code("import os; eval('os.system(\"ls\")')")
+    assert len(violations) >= 2  # Should catch both import and eval
+    assert any("import" in v.lower() for v in violations)
+    assert any("eval" in v.lower() for v in violations)
+
+    # Clean code should have no violations
+    violations = restricted_chain.analyze_code("x = 42; print(x)")
+    assert len(violations) == 0

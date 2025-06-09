@@ -10,6 +10,7 @@ from pypaya_python_tools import (
 
 __all__ = [
     "chains",
+    "code_analysis",
     "coding_with_llms",
     "create_from_config",
     "decorating",
