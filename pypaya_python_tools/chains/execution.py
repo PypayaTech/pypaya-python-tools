@@ -1,9 +1,11 @@
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, List, Union
 from pypaya_python_tools.chains.base.chain import ObjectChain
 from pypaya_python_tools.chains.base.context import ChainContext
 from pypaya_python_tools.chains.base.operations import ChainOperationType
 from pypaya_python_tools.chains.base.state import ChainState
-from pypaya_python_tools.execution.security import ExecutionSecurity
+from pypaya_python_tools.code_analysis import (
+    CodeSecurityAnalyzer, SecurityAnalyzerChain
+)
 from pypaya_python_tools.execution.repl import PythonREPL, ExecutionResult
 from pypaya_python_tools.execution.exceptions import ExecutionError
 
@@ -23,11 +25,16 @@ class ExecutionChain(ObjectChain[Any]):
             self,
             value: Optional[Any] = None,
             context: Optional[ChainContext] = None,
-            security: Optional[ExecutionSecurity] = None
+            security_analyzer: Optional[Union[CodeSecurityAnalyzer, List[CodeSecurityAnalyzer]]] = None
     ):
         super().__init__(value=value, context=context)
-        self._security = security or ExecutionSecurity()
-        self._repl = PythonREPL(security=self._security)
+
+        # If security_analyzer is a list of analyzers, create a chain
+        if isinstance(security_analyzer, list):
+            security_analyzer = SecurityAnalyzerChain(security_analyzer)
+
+        self._security_analyzer = security_analyzer
+        self._repl = PythonREPL(security_analyzer=self._security_analyzer)
 
         # Initialize REPL with current value if exists
         if self._value is not None:
@@ -51,18 +58,22 @@ class ExecutionChain(ObjectChain[Any]):
         """Get complete result of last execution."""
         return self._last_result
 
-    def execute_code(self, code: str) -> "ExecutionChain":
+    def execute_code(self, code: str, skip_security_check: bool = False) -> "ExecutionChain":
         """
         Execute arbitrary Python code.
 
         The code can modify the chain's value through '_value' variable.
         Captures both stdout and stderr.
+
+        Args:
+            code: Python code to execute
+            skip_security_check: Whether to skip security analysis
         """
         self._ensure_state([ChainState.INITIAL, ChainState.LOADED, ChainState.MODIFIED])
 
         try:
             # Execute code
-            self._last_result = self._repl.execute(code)
+            self._last_result = self._repl.execute(code, skip_security_check=skip_security_check)
 
             # Update value if modified in execution
             if "_value" in self._repl.locals:
@@ -95,17 +106,21 @@ class ExecutionChain(ObjectChain[Any]):
 
         return self
 
-    def eval_expression(self, expr: str) -> "ExecutionChain":
+    def eval_expression(self, expr: str, skip_security_check: bool = False) -> "ExecutionChain":
         """
         Evaluate a Python expression and store its result.
 
         The result becomes the new chain value.
+
+        Args:
+            expr: Python expression to evaluate
+            skip_security_check: Whether to skip security analysis
         """
         self._ensure_state([ChainState.INITIAL, ChainState.LOADED, ChainState.MODIFIED])
 
         try:
             # Evaluate expression
-            self._last_result = self._repl.eval(expr)
+            self._last_result = self._repl.eval(expr, skip_security_check=skip_security_check)
 
             # Update chain value with evaluation result
             self._value = self._last_result.result
@@ -146,6 +161,13 @@ class ExecutionChain(ObjectChain[Any]):
         self._ensure_state([ChainState.INITIAL, ChainState.LOADED, ChainState.MODIFIED])
 
         try:
+            # Analyze code security first
+            if self._security_analyzer:
+                violations = self._security_analyzer.analyze(code)
+                if violations:
+                    violation_msgs = [str(v) for v in violations]
+                    raise ExecutionError(f"Security violations in code:\n" + "\n".join(violation_msgs))
+
             # Compile code
             compiled = self._repl.compile(code, mode)
             self._value = compiled
@@ -184,6 +206,21 @@ class ExecutionChain(ObjectChain[Any]):
         """Set local variables for execution context"""
         self._repl.locals.update(locals_dict)
         return self
+
+    def analyze_code(self, code: str) -> List[str]:
+        """
+        Analyze code for security violations without executing it
+
+        Args:
+            code: Python code to analyze
+
+        Returns:
+            List of security violation messages (empty if code is safe)
+        """
+        if self._security_analyzer:
+            violations = self._security_analyzer.analyze(code)
+            return [str(v) for v in violations]
+        return []
 
     def to_import_chain(self) -> "ImportChain":
         from pypaya_python_tools.chains.importing import ImportChain
