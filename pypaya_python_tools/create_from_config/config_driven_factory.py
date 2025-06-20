@@ -91,12 +91,23 @@ class ConfigDrivenFactory(ABC, Generic[T]):
 
     def _get_class_info(self, cls: Type) -> ClassInfo:
         """Extract parameter information from a class."""
+
+        # Check if the class has its own __init__ method
+        if cls.__init__ is object.__init__:
+            # The class uses the default constructor, no parameters needed
+            return ClassInfo(parameters={}, doc=cls.__doc__)
+
+        # Continue with normal parameter extraction for classes with custom __init__
         signature = inspect.signature(cls.__init__)
         type_hints = get_type_hints(cls.__init__)
         parameters = {}
 
         for name, param in signature.parameters.items():
             if name == "self":
+                continue
+
+            # IMPORTANT: Skip variadic parameters (*args and **kwargs)
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
                 continue
 
             type_hint = type_hints.get(name)
@@ -143,9 +154,14 @@ class ConfigDrivenFactory(ABC, Generic[T]):
             # Validate type if value is provided
             if name in config and param_info.type_hint:
                 value = config[name]
+
+                # Skip type validation for complex type hints (Union, Tuple, etc.)
+                if hasattr(param_info.type_hint, "__origin__"):
+                    continue
+
                 if not isinstance(value, param_info.type_hint):
                     try:
-                        # Attempt type conversion
+                        # Attempt type conversion for simple types
                         config[name] = param_info.type_hint(value)
                     except (ValueError, TypeError):
                         raise FactoryConfigError(
@@ -210,7 +226,8 @@ class ConfigDrivenFactory(ABC, Generic[T]):
             return self._validate_instance(instance)
 
         except Exception as e:
-            raise FactoryConfigError(f"Factory creation failed: {str(e)}") from e
+            error_msg = f"Factory creation failed: {str(e)}\nConfiguration: {config}"
+            raise FactoryConfigError(error_msg) from e
 
     @abstractmethod
     def _initialize_type_mapping(self) -> None:
@@ -231,7 +248,6 @@ class ConfigDrivenFactory(ABC, Generic[T]):
     def _normalize_config(self, config: Dict[str, Any]) -> FactoryConfig:
         """Normalize different config formats into standard format."""
         config = config.copy()
-
         if "class_name" not in config:
             raise FactoryConfigError("Configuration must include 'class_name' field")
 
