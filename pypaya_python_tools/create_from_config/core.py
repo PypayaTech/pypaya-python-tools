@@ -24,7 +24,7 @@ def create_instance(
     Args:
         config: Configuration dictionary or list of configurations.
             Required keys:
-            - 'class': str - class name
+            - 'class_name': str - class name
             - One of:
               - 'module': str - module path
               - 'file': str - file path
@@ -59,8 +59,8 @@ def create_instance(
 
     try:
         # Validate required keys
-        if "class" not in config:
-            raise ValidationError("Configuration must include 'class' key")
+        if "class_name" not in config:
+            raise ValidationError("Configuration must include 'class_name' key")
         if "module" not in config and "file" not in config:
             raise ValidationError("Must provide either 'module' or 'file'")
 
@@ -72,13 +72,13 @@ def create_instance(
 
         # Import the class
         if "file" in config:
-            cls = import_object(config["file"], config["class"], security=security)
+            cls = import_object(config["file"], config["class_name"], security=security)
         else:
-            cls = import_object(config["module"], config["class"], security=security)
+            cls = import_object(config["module"], config["class_name"], security=security)
 
         # Validate it's a class
         if not isinstance(cls, type):
-            raise InstantiationError(f"'{config['class']}' is not a class")
+            raise InstantiationError(f"'{config['class_name']}' is not a class")
 
         # Check if abstract
         if inspect.isabstract(cls):
@@ -165,9 +165,9 @@ def create_callable(
             return obj
 
         # Case 2: Class instance or method
-        elif "class" in config:
+        elif "class_name" in config:
             # Create the instance
-            instance = create_instance(config["class"], security=security)
+            instance = create_instance(config["class_name"], security=security)
 
             # Get method if specified, otherwise use instance directly
             if "method" in config:
@@ -239,7 +239,7 @@ def create_callable(
         else:
             raise ValidationError(
                 "Invalid callable configuration: must include 'module'+'name', 'file'+'name', "
-                "'class', or 'partial'"
+                "'class_name', or 'partial'"
             )
 
     except ConfigError:
