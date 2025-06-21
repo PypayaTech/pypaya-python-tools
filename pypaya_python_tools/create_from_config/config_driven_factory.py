@@ -217,7 +217,7 @@ class ConfigDrivenFactory(ABC, Generic[T]):
             # Create instance using type mapping
             instance_config = {
                 "module": self.type_mapping[normalized.class_name],
-                "class": normalized.class_name,
+                "class_name": normalized.class_name,
                 "args": normalized.args or [],
                 "kwargs": normalized.kwargs or {}
             }
@@ -278,7 +278,7 @@ class ConfigDrivenFactory(ABC, Generic[T]):
     def _create_custom_implementation(self, config: FactoryConfig) -> T:
         """Create instance from custom implementation."""
         instance_config = {
-            "class": config.class_name,
+            "class_name": config.class_name,
             "args": config.args or [],
             "kwargs": config.kwargs or {}
         }

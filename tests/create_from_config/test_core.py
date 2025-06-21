@@ -10,7 +10,7 @@ class TestCreateInstance:
     def test_create_instance_basic(self):
         config = {
             "module": "datetime",
-            "class": "datetime",
+            "class_name": "datetime",
             "args": [2023, 6, 15],
             "kwargs": {"hour": 10, "minute": 30}
         }
@@ -22,7 +22,7 @@ class TestCreateInstance:
     def test_create_instance_dataclass(self):
         config = {
             "module": "tests.create_from_config.fixtures.test_classes",
-            "class": "SimpleClass",
+            "class_name": "SimpleClass",
             "kwargs": {"value": "test"}
         }
         obj = create_instance(config)
@@ -32,11 +32,11 @@ class TestCreateInstance:
     def test_create_instance_nested(self):
         config = {
             "module": "tests.create_from_config.fixtures.test_classes",
-            "class": "ComplexClass",
+            "class_name": "ComplexClass",
             "kwargs": {
                 "nested": {
                     "module": "tests.create_from_config.fixtures.test_classes",
-                    "class": "SimpleClass",
+                    "class_name": "SimpleClass",
                     "kwargs": {"value": "inner"}
                 },
                 "optional": "test"
@@ -52,12 +52,12 @@ class TestCreateInstance:
         config = [
             {
                 "module": "tests.create_from_config.fixtures.test_classes",
-                "class": "SimpleClass",
+                "class_name": "SimpleClass",
                 "kwargs": {"value": "one"}
             },
             {
                 "module": "tests.create_from_config.fixtures.test_classes",
-                "class": "SimpleClass",
+                "class_name": "SimpleClass",
                 "kwargs": {"value": "two"}
             }
         ]
@@ -79,7 +79,7 @@ class TestClass:
         # Test with explicit file path
         config = {
             "file": str(test_file),
-            "class": "TestClass",
+            "class_name": "TestClass",
             "args": ["test_value"]
         }
         obj = create_instance(config)
@@ -89,7 +89,7 @@ class TestClass:
         # Test with custom security settings
         config = {
             "module": "datetime",
-            "class": "datetime",
+            "class_name": "datetime",
             "args": [2023, 6, 15]
         }
 
@@ -110,7 +110,7 @@ class TestClass:
     def test_create_instance_validation(self):
         config = {
             "module": "tests.create_from_config.fixtures.test_classes",
-            "class": "SimpleClass",
+            "class_name": "SimpleClass",
             "kwargs": {"value": "test"}
         }
         obj = create_instance(config, expected_type=SimpleClass)
@@ -122,7 +122,7 @@ class TestClass:
     def test_create_instance_abstract(self):
         config = {
             "module": "tests.create_from_config.fixtures.test_classes",
-            "class": "AbstractClass"
+            "class_name": "AbstractClass"
         }
         with pytest.raises(InstantiationError, match="Cannot instantiate abstract class"):
             create_instance(config)
@@ -130,7 +130,7 @@ class TestClass:
     def test_create_instance_non_dataclass(self):
         config = {
             "module": "tests.create_from_config.fixtures.test_classes",
-            "class": "NonDataClass",
+            "class_name": "NonDataClass",
             "args": [1, 2]
         }
         obj = create_instance(config)
@@ -140,26 +140,26 @@ class TestClass:
 
     def test_create_instance_invalid_configs(self):
         with pytest.raises(ValidationError, match="Must provide either 'module' or 'file'"):
-            create_instance({"class": "TestClass"})
+            create_instance({"class_name": "TestClass"})
 
         with pytest.raises(ValidationError, match="'args' must be a list"):
             create_instance({
                 "module": "datetime",
-                "class": "datetime",
+                "class_name": "datetime",
                 "args": "not_a_list"
             })
 
         with pytest.raises(ValidationError, match="'kwargs' must be a dictionary"):
             create_instance({
                 "module": "datetime",
-                "class": "datetime",
+                "class_name": "datetime",
                 "kwargs": "not_a_dict"
             })
 
     def test_create_instance_not_a_class(self):
         config = {
             "module": "math",
-            "class": "sqrt"
+            "class_name": "sqrt"
         }
         with pytest.raises(InstantiationError, match="'sqrt' is not a class"):
             create_instance(config)
@@ -202,7 +202,7 @@ def test_function(x):
         config = {
             "class": {
                 "module": "tests.create_from_config.fixtures.test_classes",
-                "class": "CallableClass",
+                "class_name": "CallableClass",
                 "kwargs": {"factor": 2}
             }
         }
@@ -214,7 +214,7 @@ def test_function(x):
         config = {
             "class": {
                 "module": "tests.create_from_config.fixtures.test_classes",
-                "class": "Calculator"
+                "class_name": "Calculator"
             },
             "method": "add"
         }
@@ -242,7 +242,7 @@ def test_function(x):
                 "function": {
                     "class": {
                         "module": "tests.create_from_config.fixtures.test_classes",
-                        "class": "Calculator"
+                        "class_name": "Calculator"
                     },
                     "method": "add"
                 },
@@ -266,7 +266,7 @@ def test_function(x):
         config = {
             "class": {
                 "module": "tests.create_from_config.fixtures.test_classes",
-                "class": "SimpleClass",
+                "class_name": "SimpleClass",
                 "kwargs": {"value": "test"}
             },
             "method": "nonexistent_method"
