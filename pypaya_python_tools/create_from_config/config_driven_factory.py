@@ -87,7 +87,12 @@ class ConfigDrivenFactory(ABC, Generic[T]):
                 cls = getattr(module, class_name)
                 self._class_info_cache[class_name] = self._get_class_info(cls)
             except (ImportError, AttributeError) as e:
-                raise FactoryConfigError(f"Failed to load class {class_name} from {module_path}: {str(e)}")
+                # Log warning but don't fail - class info will be unavailable for validation
+                import logging
+                logging.warning(f"Could not load class {class_name} from {module_path}: {str(e)}. "
+                                f"Parameter validation will be skipped for this class.")
+                # Store None to indicate the class is unavailable for validation
+                self._class_info_cache[class_name] = None
 
     def _get_class_info(self, cls: Type) -> ClassInfo:
         """Extract parameter information from a class."""
@@ -138,8 +143,8 @@ class ConfigDrivenFactory(ABC, Generic[T]):
 
     def _validate_parameters(self, class_name: str, config: Dict[str, Any]) -> None:
         """Validate configuration parameters against class requirements."""
-        if class_name not in self._class_info_cache:
-            return  # Skip validation for unknown classes (custom implementations)
+        if class_name not in self._class_info_cache or self._class_info_cache[class_name] is None:
+            return  # Skip validation for unknown/unavailable classes
 
         class_info = self._class_info_cache[class_name]
 
@@ -171,8 +176,8 @@ class ConfigDrivenFactory(ABC, Generic[T]):
 
     def _add_default_values(self, class_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Add default values for missing optional parameters."""
-        if class_name not in self._class_info_cache:
-            return config
+        if class_name not in self._class_info_cache or self._class_info_cache[class_name] is None:
+            return config  # Skip for unavailable classes
 
         class_info = self._class_info_cache[class_name]
         config_with_defaults = config.copy()
