@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import inspect
 from pypaya_python_tools.create_from_config import create_instance
+from pypaya_python_tools.importing import import_object, ImportSecurity
 
 
 T = TypeVar('T')
@@ -59,7 +60,7 @@ class ConfigDrivenFactory(ABC, Generic[T]):
     - Built-in type mappings for framework classes
     - Support for custom implementations via module path or file path
     - Special case handling
-    - Parameter validation
+    - Parameter validation for both built-in and custom classes
     - Flexible configuration formats
     """
 
@@ -72,27 +73,68 @@ class ConfigDrivenFactory(ABC, Generic[T]):
         self.allow_custom = allow_custom
         self.type_mapping: Dict[str, str] = {}
         self.special_handlers: Dict[str, callable] = {}
-        self._class_info_cache: Dict[str, ClassInfo] = {}
+        self._class_info_cache: Dict[str, Optional[ClassInfo]] = {}
 
         self._initialize_type_mapping()
         self._initialize_special_handlers()
         self._validate_factory_setup()
-        self._initialize_class_info()
 
-    def _initialize_class_info(self) -> None:
-        """Initialize parameter information for all mapped classes."""
-        for class_name, module_path in self.type_mapping.items():
-            try:
-                module = __import__(module_path, fromlist=[class_name])
-                cls = getattr(module, class_name)
-                self._class_info_cache[class_name] = self._get_class_info(cls)
-            except (ImportError, AttributeError) as e:
-                # Log warning but don't fail - class info will be unavailable for validation
-                import logging
-                logging.warning(f"Could not load class {class_name} from {module_path}: {str(e)}. "
-                                f"Parameter validation will be skipped for this class.")
-                # Store None to indicate the class is unavailable for validation
-                self._class_info_cache[class_name] = None
+    def _get_class_from_config(self, config: FactoryConfig) -> Type:
+        """Get class object from factory configuration."""
+        if config.file:
+            return import_object(config.file, config.class_name, ImportSecurity(allow_file_imports=True))
+        elif config.module:
+            return import_object(config.module, config.class_name)
+        elif config.class_name in self.type_mapping:
+            module_path = self.type_mapping[config.class_name]
+            return import_object(module_path, config.class_name)
+        else:
+            available = list(self.type_mapping.keys())
+            raise FactoryConfigError(
+                f"Unknown class: {config.class_name}. Available: {available}"
+            )
+
+    def _get_cache_key(self, config: FactoryConfig) -> str:
+        """Generate cache key for class info based on configuration."""
+        if config.file:
+            return f"file:{config.file}:{config.class_name}"
+        elif config.module:
+            return f"module:{config.module}:{config.class_name}"
+        else:
+            return f"builtin:{config.class_name}"
+
+    def _ensure_class_info_loaded(self, config: FactoryConfig) -> None:
+        """Ensure class information is loaded for the specified configuration.
+
+        Raises FactoryConfigError if the class cannot be loaded.
+        """
+        cache_key = self._get_cache_key(config)
+
+        # Skip if already in cache (including None values which indicate previous failures)
+        if cache_key in self._class_info_cache:
+            if self._class_info_cache[cache_key] is None:
+                raise FactoryConfigError(f"Class '{config.class_name}' is not available")
+            return
+
+        # Try to load class information
+        try:
+            cls = self._get_class_from_config(config)
+            self._class_info_cache[cache_key] = self._get_class_info(cls)
+        except Exception as e:
+            # Cache the failure and raise a clear error
+            self._class_info_cache[cache_key] = None
+
+            # Provide context-specific error messages
+            if config.file:
+                location = f"file '{config.file}'"
+            elif config.module:
+                location = f"module '{config.module}'"
+            else:
+                location = f"built-in mapping (module: {self.type_mapping.get(config.class_name, 'unknown')})"
+
+            raise FactoryConfigError(
+                f"Failed to load class '{config.class_name}' from {location}: {str(e)}"
+            ) from e
 
     def _get_class_info(self, cls: Type) -> ClassInfo:
         """Extract parameter information from a class."""
@@ -141,24 +183,25 @@ class ConfigDrivenFactory(ABC, Generic[T]):
             doc=cls.__doc__
         )
 
-    def _validate_parameters(self, class_name: str, config: Dict[str, Any]) -> None:
+    def _validate_parameters(self, config: FactoryConfig, params: Dict[str, Any]) -> None:
         """Validate configuration parameters against class requirements."""
-        if class_name not in self._class_info_cache or self._class_info_cache[class_name] is None:
-            return  # Skip validation for unknown/unavailable classes
+        # Ensure class info is loaded (will raise if unavailable)
+        self._ensure_class_info_loaded(config)
 
-        class_info = self._class_info_cache[class_name]
+        cache_key = self._get_cache_key(config)
+        class_info = self._class_info_cache[cache_key]
 
         # Check for required parameters
         for name, param_info in class_info.parameters.items():
-            if param_info.required and name not in config:
+            if param_info.required and name not in params:
                 raise FactoryConfigError(
-                    f"Missing required parameter '{name}' for class '{class_name}'. "
+                    f"Missing required parameter '{name}' for class '{config.class_name}'. "
                     f"{param_info.doc if param_info.doc else ''}"
                 )
 
             # Validate type if value is provided
-            if name in config and param_info.type_hint:
-                value = config[name]
+            if name in params and param_info.type_hint:
+                value = params[name]
 
                 # Skip type validation for complex type hints (Union, Tuple, etc.)
                 if hasattr(param_info.type_hint, "__origin__"):
@@ -167,26 +210,27 @@ class ConfigDrivenFactory(ABC, Generic[T]):
                 if not isinstance(value, param_info.type_hint):
                     try:
                         # Attempt type conversion for simple types
-                        config[name] = param_info.type_hint(value)
+                        params[name] = param_info.type_hint(value)
                     except (ValueError, TypeError):
                         raise FactoryConfigError(
-                            f"Invalid type for parameter '{name}' in class '{class_name}'. "
+                            f"Invalid type for parameter '{name}' in class '{config.class_name}'. "
                             f"Expected {param_info.type_hint.__name__}, got {type(value).__name__}"
                         )
 
-    def _add_default_values(self, class_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _add_default_values(self, config: FactoryConfig, params: Dict[str, Any]) -> Dict[str, Any]:
         """Add default values for missing optional parameters."""
-        if class_name not in self._class_info_cache or self._class_info_cache[class_name] is None:
-            return config  # Skip for unavailable classes
+        # Ensure class info is loaded (will raise if unavailable)
+        self._ensure_class_info_loaded(config)
 
-        class_info = self._class_info_cache[class_name]
-        config_with_defaults = config.copy()
+        cache_key = self._get_cache_key(config)
+        class_info = self._class_info_cache[cache_key]
+        params_with_defaults = params.copy()
 
         for name, param_info in class_info.parameters.items():
-            if name not in config_with_defaults and not param_info.required:
-                config_with_defaults[name] = param_info.default
+            if name not in params_with_defaults and not param_info.required:
+                params_with_defaults[name] = param_info.default
 
-        return config_with_defaults
+        return params_with_defaults
 
     def build(self, config: Dict[str, Any]) -> T:
         """Build an instance based on configuration."""
@@ -199,25 +243,22 @@ class ConfigDrivenFactory(ABC, Generic[T]):
                     self.special_handlers[normalized.class_name](normalized.kwargs)
                 )
 
-            # Validate parameters and add defaults
-            self._validate_parameters(normalized.class_name, normalized.kwargs)
-            normalized.kwargs = self._add_default_values(normalized.class_name, normalized.kwargs)
-
             # Handle custom implementations
             if normalized.module or normalized.file:
                 if not self.allow_custom:
                     raise FactoryConfigError(
                         f"Custom implementations not allowed in {self.__class__.__name__}"
                     )
+
+                # Validate parameters and add defaults for custom classes
+                self._validate_parameters(normalized, normalized.kwargs)
+                normalized.kwargs = self._add_default_values(normalized, normalized.kwargs)
+
                 return self._create_custom_implementation(normalized)
 
-            # Handle built-in implementations
-            if normalized.class_name not in self.type_mapping:
-                available = list(self.type_mapping.keys())
-                raise FactoryConfigError(
-                    f"Unknown class: {normalized.class_name}. "
-                    f"Available: {available}"
-                )
+            # For built-in implementations, validate parameters and add defaults
+            self._validate_parameters(normalized, normalized.kwargs)
+            normalized.kwargs = self._add_default_values(normalized, normalized.kwargs)
 
             # Create instance using type mapping
             instance_config = {
